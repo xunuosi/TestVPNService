@@ -13,12 +13,12 @@ class IPPacket(val ipPacketData: ByteArray) {
         val version: Int
         val payloadSize: Int
         val protocol: Int
-        var checksum: Int
+        var checksum: Short
         init {
             version = ipHeaderData[0].toInt() shr 4
             payloadSize = ipHeaderData[2].toInt() shl 8 or ipHeaderData[3].toInt()
             protocol = ipHeaderData[9].toInt()
-            checksum = (ipHeaderData[10].toInt() and 0xFF shl 8) or (ipHeaderData[11].toInt() and 0xFF)
+            checksum = ((ipHeaderData[10].toInt() and 0xFF shl 8) or (ipHeaderData[11].toInt() and 0xFF)).toShort()
             srcIP = InetAddress.getByAddress(ipHeaderData.copyOfRange(12, 16))
             dstIP = InetAddress.getByAddress(ipHeaderData.copyOfRange(16, 20))
         }
@@ -54,15 +54,17 @@ class IPPacket(val ipPacketData: ByteArray) {
         }
 
         fun refreshChecksum() {
+            this.ipHeaderData[10] = 0x00
             this.ipHeaderData[11] = 0x00
-            this.ipHeaderData[12] = 0x00
-            val data = byteArrayOf(0x45, 0x00, 0x00, 0x1c, 0x74, 0x68, 0x00, 0x00,
-                0x80.toByte(), 0x11, 0x59, 0x8F.toByte(), 0xc0.toByte(),
-                0xa8.toByte(), 0x64, 0x01, 0xab.toByte(), 0x46, 0x9c.toByte(), 0xe9.toByte())
+//            val data = byteArrayOf(0x45, 0x00, 0x00, 0x1c, 0x74, 0x68, 0x00, 0x00,
+//                0x80.toByte(), 0x11, 0x59, 0x8F.toByte(), 0xc0.toByte(),
+//                0xa8.toByte(), 0x64, 0x01, 0xab.toByte(), 0x46, 0x9c.toByte(), 0xe9.toByte())
+//            data[10] = 0x00
+//            data[11] = 0x00
             val newSum = Tools.checkIPSum(this.ipHeaderData, this.ipHeaderData.size)
-            this.checksum = newSum.toInt()
+            this.checksum = newSum
             val buffer = ByteBuffer.wrap(this.ipHeaderData)
-            buffer.putShort(11, newSum)
+            buffer.putShort(10, newSum)
         }
 
         fun toData(): ByteArray {
