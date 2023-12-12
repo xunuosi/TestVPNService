@@ -14,8 +14,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.ns.testvpnservice.monitor.LocalService
 import com.ns.testvpnservice.service.MyVPNService
 import com.ns.testvpnservice.ui.theme.TestVPNServiceTheme
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
     private lateinit var someActivityResultLauncher: ActivityResultLauncher<Intent>
@@ -34,6 +36,11 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        Thread{
+            val serviceIntent = Intent(this, LocalService::class.java)
+            startService(serviceIntent)
+        }.start()
+        Thread.sleep(3000)
         someActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {result ->
             // Handle the result in onActivityResult
             if (result.resultCode == RESULT_OK) {

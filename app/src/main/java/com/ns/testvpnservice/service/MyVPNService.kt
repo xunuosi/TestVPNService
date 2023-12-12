@@ -38,7 +38,11 @@ class MyVPNService : VpnService(), Handler.Callback {
 
     override fun onCreate() {
         super.onCreate()
-        mConfigureIntent = PendingIntent.getActivity(this, 0,  Intent(this, MainActivity::class.java),  PendingIntent.FLAG_UPDATE_CURRENT)
+
+        mConfigureIntent = PendingIntent.getActivity(this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     override fun handleMessage(msg: Message): Boolean {
@@ -66,7 +70,7 @@ class MyVPNService : VpnService(), Handler.Callback {
         startConnection(MyVpnConnection(this,
             mNextConnectionId.getAndIncrement(),
             "localhost",
-            9999,
+            3939,
             true,
             PACKAGES
             ))

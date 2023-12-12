@@ -3,6 +3,8 @@ package com.ns.testvpnservice.service
 import android.app.PendingIntent
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import com.ns.testvpnservice.bean.IPPacket
+import com.ns.testvpnservice.bean.TCPPacket
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
@@ -14,7 +16,6 @@ import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import java.nio.charset.StandardCharsets.US_ASCII
 import java.util.concurrent.TimeUnit
-import kotlin.experimental.and
 
 class MyVpnConnection(private val mService: MyVPNService, private  val connectionId: Int, private val mServerName: String, private  val mServerPort: Int,
     private val allow: Boolean, private val packages: Set<String>) : Runnable{
@@ -55,7 +56,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         var connected = false
         try {
 //            val tunnel = DatagramChannel.open()
-            //  Protect the tunnel before connecting to avoid loopback.
+              // Protect the tunnel before connecting to avoid loopback.
 //            if (!mService.protect(tunnel.socket())) {
 //                throw IllegalStateException("Cannot protect the tunnel")
 //            }
@@ -63,7 +64,8 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 //            tunnel.connect(server)
 //            tunnel.configureBlocking(false)
 
-            iface = configure("")
+//            iface = handshake(tunnel)
+            iface = configure("mock")
             iface ?: return false
 
             connected = true
@@ -81,16 +83,23 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
             while (true) {
                 var idle = true
 
-                var len = input.read(packet.array())
+                val len = input.read(packet.array())
                 if (len > 0) {
                     packet.limit(len)
                     val byteArray = ByteArray(len)
                     packet.get(byteArray)
                     parseIpv4Packet(byteArray)
-//                    tunnel.write(packet)
-                    output.write(packet.array())
+//                    packet.position(0)
+//                    tunnel.write(ByteBuffer.wrap(byteArray))
+                    output.write(byteArray)
                     packet.clear()
                 }
+//                len = tunnel.read(packet)
+//                if (len > 0) {
+//                    // ignore control message, which start with zero
+//                    output.write(packet.array())
+//                    packet.clear()
+//                }
             }
         } catch (e: SocketException) {
             Log.e(TAG, "Cannot use socket ${e.message}")
@@ -111,7 +120,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
                 throw IllegalStateException("Cannot protect the tunnel")
             }
 
-//            tunnel.connect(server)
+            tunnel.connect(server)
             tunnel.configureBlocking(false)
 
             iface = handshake(tunnel)
@@ -134,10 +143,6 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 
                 var len = input.read(packet.array())
                 if (len > 0) {
-                    packet.limit(len)
-                    val byteArray = ByteArray(len)
-                    packet.get(byteArray)
-                    parseIpv4Packet(byteArray)
                     tunnel.write(packet)
                     packet.clear()
 
@@ -208,20 +213,20 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         val packet = ByteBuffer.allocate(1024)
         packet.put(0.toByte()).flip()
         // Send the secret several times in case of packet loss.
-//        for (i in 0..2) {
-//            packet.position(0)
-//            tunnel.write(packet)
-//        }
-//        packet.clear()
+        for (i in 0..2) {
+            packet.position(0)
+            tunnel.write(packet)
+        }
+        packet.clear()
 
         // Wait for the parameters within a limited time.
         for (i in 1 .. MAX_HANDSHAKE_ATTEMPTS) {
             Thread.sleep(IDLE_INTERVAL_MS)
 
-//            val length = tunnel.read(packet)
-//            if (length > 0 && packet.get(0) == 0.toByte()) {
-//                return configure(String(packet.array(), 1, length - 1, US_ASCII).trim())
-//            }
+            val length = tunnel.read(packet)
+            if (length > 0 && packet.get(0) == 0.toByte()) {
+                return configure(String(packet.array(), 1, length - 1, US_ASCII).trim())
+            }
             return configure("mock")
         }
         throw IOException("Time out")
@@ -239,6 +244,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 //                    's' -> builder.addSearchDomain(fields[1])
 //                }
 //        }
+//        builder.setMtu()
         builder.addAddress("10.0.0.1", 32)
         builder.addRoute("0.0.0.0", 0)
         val vpnInterface: ParcelFileDescriptor?
@@ -264,25 +270,47 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
             Log.e(TAG, "Invalid IPv4 packet. Minimum length is 20 bytes.")
             return
         }
+        val ipPacket = IPPacket(packetData)
+        val ipHeaderBean = ipPacket.headerBean
+        Log.i(TAG,"IP Header src:$ipHeaderBean")
+        ipHeaderBean.refreshChecksum()
+        Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
+        if (ipHeaderBean.isTCP()) {
+            val tcpPacket = TCPPacket(packetData.copyOfRange(20, packetData.size - 20))
+            val tcpHeader = tcpPacket.headerBean
+            Log.i(TAG,"TCP Header src:$tcpHeader")
+            tcpHeader.settingSrcPort(6666)
+            tcpHeader.settingDstPort(9999)
+            val tcpHeader2 = TCPPacket(tcpPacket.toData()).headerBean
+            Log.i(TAG,"TCP Header new:$tcpHeader2")
+        }
 
-        // Extract version and header length
-        val versionByte = packetData[0]
-        val version = versionByte.toInt() shr 4
 
-        val totalLenBytes = packetData.slice(2..3)
-        val totalLen = totalLenBytes[0].toInt() shl 8 or totalLenBytes[1].toInt()
 
-        // Extract source and destination IP addresses
-        val sourceIp = InetAddress.getByAddress(packetData.copyOfRange(12, 16))
-        val destinationIp = InetAddress.getByAddress(packetData.copyOfRange(16, 20))
+//        System.arraycopy(destinationIp.address, 0, packetData, 12, 4)
+//        System.arraycopy(InetAddress.getByName("172.217.163.46").address, 0, packetData, 16, 4)
+        // TCP local server
+//        val tcpListenerAddr = InetAddress.getByName("localhost:3939")
+//        System.arraycopy("localhost", 0, packetData, 16, 4)
 
-        // Extract protocol
-        val protocol = packetData[9].toInt()
+//        val sourceIp2 = InetAddress.getByAddress(packetData.copyOfRange(12, 16))
+//        val destinationIp2 = InetAddress.getByAddress(packetData.copyOfRange(16, 20))
 
-        Log.i(TAG,"Version: $version")
-        Log.i(TAG,"Protocol: $protocol")
-        Log.i(TAG,"Total Length: $totalLen bytes")
-        Log.i(TAG,"Source IP: $sourceIp")
-        Log.i(TAG,"Destination IP: $destinationIp")
+        // Parse TCP Header
+//        val tcpHeader = packetData.copyOfRange(20, 24)
+//        val srcPort = (tcpHeader[0].toInt() and 0xFF shl 8) or (tcpHeader[1].toInt() and 0xFF)
+//        val dstPort = (tcpHeader[2].toInt() and 0xFF shl 8) or (tcpHeader[3].toInt() and 0xFF)
+
+//        System.arraycopy(dstPort, 0, packetData, 20, 2)
+//        System.arraycopy(3939, 0, packetData, 20, 2)
+
+
+
+//        ipHeaderBean.settingSrcIp(InetAddress.getByName("192.168.0.66"))
+//        ipHeaderBean.settingDstIp(InetAddress.getByName("192.168.0.99"))
+//        Log.i(TAG,"new:$ipHeaderBean")
+//        val ipPacket2 = IPPacket(ipPacket.toData())
+//        Log.i(TAG,"new2:${ipPacket2.headerBean}")
+//        ipHeaderBean.setSrcIp(ipHeaderBean.dstIP)
     }
 }
