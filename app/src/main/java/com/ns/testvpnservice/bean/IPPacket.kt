@@ -16,7 +16,7 @@ class IPPacket(val ipPacketData: ByteArray) {
         var checksum: Short
         init {
             version = ipHeaderData[0].toInt() shr 4
-            payloadSize = ipHeaderData[2].toInt() shl 8 or ipHeaderData[3].toInt()
+            payloadSize = ipHeaderData[2].toInt() shl 8 or ipHeaderData[3].toInt() - 20
             protocol = ipHeaderData[9].toInt()
             checksum = ((ipHeaderData[10].toInt() and 0xFF shl 8) or (ipHeaderData[11].toInt() and 0xFF)).toShort()
             srcIP = InetAddress.getByAddress(ipHeaderData.copyOfRange(12, 16))
@@ -77,5 +77,11 @@ class IPPacket(val ipPacketData: ByteArray) {
         buffer.position(0)
         buffer.put(this.headerBean.toData())
         return this.ipPacketData
+    }
+
+    fun settingPayload(data: ByteArray) {
+        val buffer = ByteBuffer.wrap(this.ipPacketData)
+        buffer.position(20)
+        buffer.put(data)
     }
 }

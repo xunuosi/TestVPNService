@@ -88,10 +88,10 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
                     packet.limit(len)
                     val byteArray = ByteArray(len)
                     packet.get(byteArray)
-                    parseIpv4Packet(byteArray)
+                    val data = parseIpv4Packet(byteArray)
 //                    packet.position(0)
 //                    tunnel.write(ByteBuffer.wrap(byteArray))
-                    output.write(byteArray)
+                    output.write(data)
                     packet.clear()
                 }
 //                len = tunnel.read(packet)
@@ -265,28 +265,29 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         return vpnInterface
     }
 
-    private fun parseIpv4Packet(packetData: ByteArray) {
+    private fun parseIpv4Packet(packetData: ByteArray): ByteArray {
         if (packetData.size < 20) {
             Log.e(TAG, "Invalid IPv4 packet. Minimum length is 20 bytes.")
-            return
+            return ByteArray(0)
         }
         val ipPacket = IPPacket(packetData)
         val ipHeaderBean = ipPacket.headerBean
         Log.i(TAG,"IP Header src:$ipHeaderBean")
+        ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
+        ipHeaderBean.settingDstIp(InetAddress.getByName("10.0.0.1"))
         ipHeaderBean.refreshChecksum()
         Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
         if (ipHeaderBean.isTCP()) {
-            val tcpPacket = TCPPacket(packetData.copyOfRange(20, packetData.size - 20))
+            val tcpPacket = TCPPacket(packetData.copyOfRange(20, packetData.size))
             val tcpHeader = tcpPacket.headerBean
             Log.i(TAG,"TCP Header src:$tcpHeader")
-            tcpHeader.settingSrcPort(6666)
-            tcpHeader.settingDstPort(9999)
-            val tcpHeader2 = TCPPacket(tcpPacket.toData()).headerBean
-            Log.i(TAG,"TCP Header new:$tcpHeader2")
+//            tcpHeader.settingSrcPort(tcpHeader.dstPort)
+            tcpHeader.settingDstPort(3939)
+            tcpHeader.refreshChecksum(ipHeaderBean)
+            ipPacket.settingPayload(tcpPacket.toData())
+//            val tcpHeader2 = TCPPacket(tcpPacket.toData()).headerBean
+            Log.i(TAG,"TCP Header refresh checksum:$tcpHeader")
         }
-
-
-
 //        System.arraycopy(destinationIp.address, 0, packetData, 12, 4)
 //        System.arraycopy(InetAddress.getByName("172.217.163.46").address, 0, packetData, 16, 4)
         // TCP local server
@@ -312,5 +313,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 //        val ipPacket2 = IPPacket(ipPacket.toData())
 //        Log.i(TAG,"new2:${ipPacket2.headerBean}")
 //        ipHeaderBean.setSrcIp(ipHeaderBean.dstIP)
+
+        return ipPacket.toData()
     }
 }
