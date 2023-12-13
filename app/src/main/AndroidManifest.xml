@@ -35,10 +35,6 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
-        <service android:name=".monitor.LocalService"
-            android:exported="false">
-
-        </service>
     </application>
 
 </manifest>

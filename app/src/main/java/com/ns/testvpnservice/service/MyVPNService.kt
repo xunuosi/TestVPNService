@@ -15,9 +15,12 @@ import android.widget.Toast
 import androidx.core.util.Pair
 import com.ns.testvpnservice.MainActivity
 import com.ns.testvpnservice.R
+import com.ns.testvpnservice.monitor.LocalService
 import java.io.IOException
+import java.net.Socket
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 
 class MyVPNService : VpnService(), Handler.Callback {
@@ -67,13 +70,16 @@ class MyVPNService : VpnService(), Handler.Callback {
         updateForegroundNotification(R.string.connecting)
         mHandler.sendEmptyMessage(R.string.connecting)
 
+        val proxy = LocalService(0)
+        proxy.start()
+
         startConnection(MyVpnConnection(this,
             mNextConnectionId.getAndIncrement(),
             "localhost",
             3939,
             true,
-            PACKAGES
-            ))
+            PACKAGES,
+            proxy))
     }
 
     private fun startConnection(connection: MyVpnConnection) {

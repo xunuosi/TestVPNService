@@ -11,12 +11,14 @@ class IPPacket(val ipPacketData: ByteArray) {
         var srcIP: InetAddress
         var dstIP: InetAddress
         val version: Int
+        val headerLen: Int
         val payloadSize: Int
         val protocol: Int
         var checksum: Short
         init {
             version = ipHeaderData[0].toInt() shr 4
-            payloadSize = ipHeaderData[2].toInt() shl 8 or ipHeaderData[3].toInt() - 20
+            headerLen = (ipHeaderData[0].toInt() and 0x0F) * 4
+            payloadSize = ((ipHeaderData[2].toInt() shl 8 or ipHeaderData[3].toInt()).toByte().toUShort() - 20u).toInt()
             protocol = ipHeaderData[9].toInt()
             checksum = ((ipHeaderData[10].toInt() and 0xFF shl 8) or (ipHeaderData[11].toInt() and 0xFF)).toShort()
             srcIP = InetAddress.getByAddress(ipHeaderData.copyOfRange(12, 16))
@@ -27,6 +29,7 @@ class IPPacket(val ipPacketData: ByteArray) {
             val sb = StringBuilder()
             sb.append("IP:{\n")
             sb.append("Version:${this.version}\n")
+            sb.append("HeaderSize:${this.headerLen}\n")
             sb.append("PayloadSize:${this.payloadSize}\n")
             sb.append("Protocol:${this.protocol}\n")
             sb.append("Src IP:${this.srcIP}\n")

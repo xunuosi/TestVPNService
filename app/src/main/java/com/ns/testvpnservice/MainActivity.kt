@@ -17,7 +17,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.ns.testvpnservice.monitor.LocalService
 import com.ns.testvpnservice.service.MyVPNService
 import com.ns.testvpnservice.ui.theme.TestVPNServiceTheme
-import java.util.concurrent.TimeUnit
+import java.net.InetSocketAddress
+import java.net.Socket
+import java.net.SocketAddress
+import java.nio.ByteBuffer
+import java.nio.channels.SocketChannel
+import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
     private lateinit var someActivityResultLauncher: ActivityResultLauncher<Intent>
@@ -36,11 +41,20 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        Thread{
-            val serviceIntent = Intent(this, LocalService::class.java)
-            startService(serviceIntent)
-        }.start()
-        Thread.sleep(3000)
+//        thread(start=true) {
+//            LocalService(39399).start()
+//        }
+
+//        thread(start = true) {
+//            Thread.sleep(500)
+//            val socket = SocketChannel.open()
+//            socket.connect(InetSocketAddress(39399))
+//            val buffer = ByteBuffer.allocate(5)
+//            buffer.put("hello".toByteArray())
+//            buffer.flip()
+//            socket.write(buffer)
+//        }
+
         someActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {result ->
             // Handle the result in onActivityResult
             if (result.resultCode == RESULT_OK) {

@@ -1,61 +1,104 @@
 package com.ns.testvpnservice.monitor
 
-import android.app.Service
-import android.content.Intent
-import android.os.Binder
-import android.os.IBinder
 import android.util.Log
-import java.io.BufferedReader
-import java.io.IOException
-import java.io.InputStreamReader
-import java.net.ServerSocket
-import java.net.Socket
+import java.net.InetSocketAddress
+import java.nio.channels.SelectionKey
+import java.nio.channels.Selector
+import java.nio.channels.ServerSocketChannel
 
-class LocalService : Service() {
+class LocalService(port: Int) : Thread() {
+    private val mSelector: Selector
+    private val mServerSocketChannel: ServerSocketChannel
+    val myPort: Int
+    private val mServerThread: Thread
     companion object {
         private const val TAG = "LocalService"
     }
-    private val binder: IBinder = LocalBinder()
-    private lateinit var serverSocket: ServerSocket
 
-    inner class LocalBinder : Binder() {
-        fun getService(): LocalService = this@LocalService
+    init {
+        mSelector = Selector.open()
+
+        mServerSocketChannel = ServerSocketChannel.open()
+        mServerSocketChannel.configureBlocking(false)
+        mServerSocketChannel.socket().bind(InetSocketAddress(port))
+        mServerSocketChannel.register(mSelector, SelectionKey.OP_ACCEPT)
+        myPort = mServerSocketChannel.socket().localPort
+        mServerThread = Thread(this, "TcpProxyServerThread")
     }
 
-    override fun onBind(intent: Intent?): IBinder {
-        return binder
+    override fun start() {
+        mServerThread.start()
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        Log.i(TAG, "LocalService starting...")
+    override fun run() {
+        Log.d(TAG, "has run...")
         try {
-            // Start listening on a TCP port (e.g., 12345)
-            serverSocket = ServerSocket(3939)
-            Log.i(TAG, "LocalService started...")
-
-            // Start a background thread to handle incoming connections
-            Thread {
-                while (true) {
-                    try {
-                        // Accept incoming connections
-                        val clientSocket: Socket = serverSocket.accept()
-
-                        // Handle the connection (you can do something with the socket)
-                        handleClient(clientSocket)
-                    } catch (e: IOException) {
-                        e.printStackTrace()
-                    }
+            while (true) {
+                val select: Int = mSelector.select()
+                if (select == 0) {
+                    sleep(5)
+                    Log.d(TAG, "sleep...")
+                    continue
                 }
-            }.start()
-        } catch (e: IOException) {
-            e.printStackTrace()
+                val selectionKeys: Set<SelectionKey> = mSelector.selectedKeys()
+                    ?: continue
+                val keyIterator: MutableIterator<SelectionKey> = mSelector.selectedKeys().iterator()
+                while (keyIterator.hasNext()) {
+                    val key = keyIterator.next()
+                    if (key.isValid) {
+                        try {
+                            if (key.isAcceptable) {
+                                Log.d(TAG, "isAcceptable")
+                                onAccepted(key)
+                            } else {
+                                val attachment = key.attachment()
+//                                if (attachment is KeyHandler) {
+//                                    (attachment as KeyHandler).onKeyReady(key)
+//                                }
+                            }
+                        } catch (ex: Exception) {
+                            ex.printStackTrace(System.err)
+                        }
+                    }
+                    keyIterator.remove()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace(System.err)
+            Log.e(TAG, "updServer catch an exception: %s", e)
+        } finally {
+            this.stop()
+            Log.i(TAG,"udpServer thread exited.")
         }
     }
 
-    private fun handleClient(clientSocket: Socket) {
-        // Implement your logic for handling the incoming connection
-        // This could involve reading/writing data to/from the socket
-        Log.d(TAG, "Handling client connection from ${clientSocket.inetAddress}")
+    fun onAccepted(key: SelectionKey?) {
+        Log.d(TAG, "onAccepted")
+//        var localTunnel: TcpTunnel? = null
+//        try {
+//            val localChannel = mServerSocketChannel.accept()
+//            localTunnel = TunnelFactory.wrap(localChannel, mSelector)
+//            val portKey = localChannel.socket().port.toShort()
+//            val destAddress: InetSocketAddress = getDestAddress(localChannel)
+//            if (destAddress != null) {
+//                val remoteTunnel: TcpTunnel =
+//                    TunnelFactory.createTunnelByConfig(destAddress, mSelector, portKey)
+//                //关联兄弟
+//                remoteTunnel.setIsHttpsRequest(localTunnel.isHttpsRequest())
+//                remoteTunnel.setBrotherTunnel(localTunnel)
+//                localTunnel.setBrotherTunnel(remoteTunnel)
+//                //开始连接
+//                remoteTunnel.connect(destAddress)
+//            }
+//        } catch (ex: java.lang.Exception) {
+//            if (AppDebug.IS_DEBUG) {
+//                ex.printStackTrace(System.err)
+//            }
+//            DebugLog.e("TcpProxyServer onAccepted catch an exception: %s", ex)
+//            if (localTunnel != null) {
+//                localTunnel.dispose()
+//            }
+//        }
     }
+
 }

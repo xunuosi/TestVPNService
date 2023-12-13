@@ -3,8 +3,10 @@ package com.ns.testvpnservice.service
 import android.app.PendingIntent
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import com.ns.testvpnservice.Tools
 import com.ns.testvpnservice.bean.IPPacket
 import com.ns.testvpnservice.bean.TCPPacket
+import com.ns.testvpnservice.monitor.LocalService
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
@@ -18,7 +20,7 @@ import java.nio.charset.StandardCharsets.US_ASCII
 import java.util.concurrent.TimeUnit
 
 class MyVpnConnection(private val mService: MyVPNService, private  val connectionId: Int, private val mServerName: String, private  val mServerPort: Int,
-    private val allow: Boolean, private val packages: Set<String>) : Runnable{
+    private val allow: Boolean, private val packages: Set<String>, val mTcpProxyServer: LocalService) : Runnable{
     companion object {
         private const val TAG = "MyVpnConnection"
         private const val MAX_HANDSHAKE_ATTEMPTS = 50
@@ -29,7 +31,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
     }
     private lateinit var mConfigureIntent: PendingIntent
     private var mListener: OnEstablishListener? = null
-
+    private var output: FileOutputStream? = null
 
     fun interface OnEstablishListener {
         fun onEstablish(tunInterface: ParcelFileDescriptor?)
@@ -71,7 +73,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
             connected = true
 
             val input = FileInputStream(iface.fileDescriptor)
-            val output = FileOutputStream(iface.fileDescriptor)
+            output = FileOutputStream(iface.fileDescriptor)
             val packet = ByteBuffer.allocate(MAX_PACKET_SIZE)
 
             // Timeouts:
@@ -82,18 +84,23 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 
             while (true) {
                 var idle = true
-
+                var hasWrite = false
                 val len = input.read(packet.array())
                 if (len > 0) {
                     packet.limit(len)
                     val byteArray = ByteArray(len)
                     packet.get(byteArray)
-                    val data = parseIpv4Packet(byteArray)
+                    hasWrite = parseIpv4Packet(byteArray)
+//                    parseIpv4Packet(data)
 //                    packet.position(0)
 //                    tunnel.write(ByteBuffer.wrap(byteArray))
-                    output.write(data)
+//                    output.write(data)
                     packet.clear()
                 }
+                if (!hasWrite) {
+
+                }
+                Thread.sleep(10)
 //                len = tunnel.read(packet)
 //                if (len > 0) {
 //                    // ignore control message, which start with zero
@@ -245,8 +252,11 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 //                }
 //        }
 //        builder.setMtu()
-        builder.addAddress("10.0.0.1", 32)
+        builder.addAddress("10.8.0.2", 32)
         builder.addRoute("0.0.0.0", 0)
+//        builder.addDnsServer("8.8.8.8")
+//        builder.addDnsServer("8.8.4.4")
+//        builder.addDnsServer("114.114.114.114")
         val vpnInterface: ParcelFileDescriptor?
         packages.forEach {
             if (allow) {
@@ -265,55 +275,40 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         return vpnInterface
     }
 
-    private fun parseIpv4Packet(packetData: ByteArray): ByteArray {
+    private fun parseIpv4Packet(packetData: ByteArray): Boolean {
+        println("---------------------------src-------------------------------------")
+        println(packetData.contentToString())
         if (packetData.size < 20) {
             Log.e(TAG, "Invalid IPv4 packet. Minimum length is 20 bytes.")
-            return ByteArray(0)
+            return false
         }
         val ipPacket = IPPacket(packetData)
         val ipHeaderBean = ipPacket.headerBean
         Log.i(TAG,"IP Header src:$ipHeaderBean")
-        ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
-        ipHeaderBean.settingDstIp(InetAddress.getByName("10.0.0.1"))
-        ipHeaderBean.refreshChecksum()
-        Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
-        if (ipHeaderBean.isTCP()) {
+        if (ipHeaderBean.isTCP() && ipHeaderBean.version == 4) {
+//            ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
+//            ipHeaderBean.settingDstIp(InetAddress.getByName("10.8.0.2"))
+//            ipHeaderBean.refreshChecksum()
+//            Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
+//
             val tcpPacket = TCPPacket(packetData.copyOfRange(20, packetData.size))
             val tcpHeader = tcpPacket.headerBean
-            Log.i(TAG,"TCP Header src:$tcpHeader")
+//            Log.i(TAG,"TCP Header src:$tcpHeader")
 //            tcpHeader.settingSrcPort(tcpHeader.dstPort)
-            tcpHeader.settingDstPort(3939)
-            tcpHeader.refreshChecksum(ipHeaderBean)
-            ipPacket.settingPayload(tcpPacket.toData())
+//            tcpHeader.settingDstPort(mTcpProxyServer.myPort)
+//            tcpHeader.refreshChecksum(ipHeaderBean)
+//            ipPacket.settingPayload(tcpPacket.toData())
 //            val tcpHeader2 = TCPPacket(tcpPacket.toData()).headerBean
-            Log.i(TAG,"TCP Header refresh checksum:$tcpHeader")
+//            Log.i(TAG,"TCP Header refresh checksum:$tcpHeader")
+//            println("---------------------------new-------------------------------------")
+//            val newData= ipPacket.toData()
+//            println(newData.contentToString())
+//            println("---------------------------end-------------------------------------")
+            val data = Tools.mockTestPacket(mTcpProxyServer.myPort.toShort())
+            output?.write(data, 0, data.size)
+
+            return true
         }
-//        System.arraycopy(destinationIp.address, 0, packetData, 12, 4)
-//        System.arraycopy(InetAddress.getByName("172.217.163.46").address, 0, packetData, 16, 4)
-        // TCP local server
-//        val tcpListenerAddr = InetAddress.getByName("localhost:3939")
-//        System.arraycopy("localhost", 0, packetData, 16, 4)
-
-//        val sourceIp2 = InetAddress.getByAddress(packetData.copyOfRange(12, 16))
-//        val destinationIp2 = InetAddress.getByAddress(packetData.copyOfRange(16, 20))
-
-        // Parse TCP Header
-//        val tcpHeader = packetData.copyOfRange(20, 24)
-//        val srcPort = (tcpHeader[0].toInt() and 0xFF shl 8) or (tcpHeader[1].toInt() and 0xFF)
-//        val dstPort = (tcpHeader[2].toInt() and 0xFF shl 8) or (tcpHeader[3].toInt() and 0xFF)
-
-//        System.arraycopy(dstPort, 0, packetData, 20, 2)
-//        System.arraycopy(3939, 0, packetData, 20, 2)
-
-
-
-//        ipHeaderBean.settingSrcIp(InetAddress.getByName("192.168.0.66"))
-//        ipHeaderBean.settingDstIp(InetAddress.getByName("192.168.0.99"))
-//        Log.i(TAG,"new:$ipHeaderBean")
-//        val ipPacket2 = IPPacket(ipPacket.toData())
-//        Log.i(TAG,"new2:${ipPacket2.headerBean}")
-//        ipHeaderBean.setSrcIp(ipHeaderBean.dstIP)
-
-        return ipPacket.toData()
+        return false
     }
 }
