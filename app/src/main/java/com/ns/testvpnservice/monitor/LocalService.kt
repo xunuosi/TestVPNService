@@ -73,7 +73,9 @@ class LocalService(port: Int) : Thread() {
     }
 
     fun onAccepted(key: SelectionKey?) {
-        Log.d(TAG, "onAccepted")
+        val localChannel = mServerSocketChannel.accept()
+        Log.d(TAG, "onAccepted:$localChannel")
+
 //        var localTunnel: TcpTunnel? = null
 //        try {
 //            val localChannel = mServerSocketChannel.accept()

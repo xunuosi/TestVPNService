@@ -95,10 +95,10 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 //                    packet.position(0)
 //                    tunnel.write(ByteBuffer.wrap(byteArray))
 //                    output.write(data)
+                   if (!hasWrite) {
+                       output?.write(packet.array())
+                   }
                     packet.clear()
-                }
-                if (!hasWrite) {
-
                 }
                 Thread.sleep(10)
 //                len = tunnel.read(packet)
@@ -286,25 +286,26 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         val ipHeaderBean = ipPacket.headerBean
         Log.i(TAG,"IP Header src:$ipHeaderBean")
         if (ipHeaderBean.isTCP() && ipHeaderBean.version == 4) {
-//            ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
+            ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
 //            ipHeaderBean.settingDstIp(InetAddress.getByName("10.8.0.2"))
-//            ipHeaderBean.refreshChecksum()
-//            Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
+            ipHeaderBean.settingDstIp(InetAddress.getByName("127.0.0.1"))
+            ipHeaderBean.refreshChecksum()
+            Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
 //
             val tcpPacket = TCPPacket(packetData.copyOfRange(20, packetData.size))
             val tcpHeader = tcpPacket.headerBean
-//            Log.i(TAG,"TCP Header src:$tcpHeader")
-//            tcpHeader.settingSrcPort(tcpHeader.dstPort)
-//            tcpHeader.settingDstPort(mTcpProxyServer.myPort)
-//            tcpHeader.refreshChecksum(ipHeaderBean)
-//            ipPacket.settingPayload(tcpPacket.toData())
+            Log.i(TAG,"TCP Header src:$tcpHeader")
+            tcpHeader.settingSrcPort(tcpHeader.dstPort)
+            tcpHeader.settingDstPort(mTcpProxyServer.myPort)
+            tcpHeader.refreshChecksum(ipHeaderBean)
+            ipPacket.settingPayload(tcpPacket.toData())
 //            val tcpHeader2 = TCPPacket(tcpPacket.toData()).headerBean
-//            Log.i(TAG,"TCP Header refresh checksum:$tcpHeader")
+            Log.i(TAG,"TCP Header refresh checksum:$tcpHeader")
 //            println("---------------------------new-------------------------------------")
-//            val newData= ipPacket.toData()
+            val data = ipPacket.toData()
 //            println(newData.contentToString())
 //            println("---------------------------end-------------------------------------")
-            val data = Tools.mockTestPacket(mTcpProxyServer.myPort.toShort())
+//            val data = Tools.mockTestPacket(mTcpProxyServer.myPort.toShort())
             output?.write(data, 0, data.size)
 
             return true

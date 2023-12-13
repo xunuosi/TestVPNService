@@ -17,7 +17,10 @@ import com.ns.testvpnservice.MainActivity
 import com.ns.testvpnservice.R
 import com.ns.testvpnservice.monitor.LocalService
 import java.io.IOException
+import java.net.InetSocketAddress
 import java.net.Socket
+import java.nio.ByteBuffer
+import java.nio.channels.SocketChannel
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
@@ -31,10 +34,15 @@ class MyVPNService : VpnService(), Handler.Callback {
         val mNextConnectionId = AtomicInteger(1)
         val PACKAGES = setOf("com.lite.lanxin", "com.lite.lanxin.alpha", "com.termux")
     }
-    private class Connection<Thread, ParcelFileDescriptor>(first: Thread,  second: ParcelFileDescriptor?) :  Pair<Thread, ParcelFileDescriptor?>(first, second) {}
+
+    private class Connection<Thread, ParcelFileDescriptor>(
+        first: Thread,
+        second: ParcelFileDescriptor?
+    ) : Pair<Thread, ParcelFileDescriptor?>(first, second) {}
 
     private val mConnectingThread: AtomicReference<Thread> = AtomicReference<Thread>()
-    private val mConnection: AtomicReference<Connection<Thread, ParcelFileDescriptor>> = AtomicReference<Connection<Thread, ParcelFileDescriptor>>()
+    private val mConnection: AtomicReference<Connection<Thread, ParcelFileDescriptor>> =
+        AtomicReference<Connection<Thread, ParcelFileDescriptor>>()
 
     private val mHandler: Handler = Handler(this)
     private lateinit var mConfigureIntent: PendingIntent
@@ -42,10 +50,12 @@ class MyVPNService : VpnService(), Handler.Callback {
     override fun onCreate() {
         super.onCreate()
 
-        mConfigureIntent = PendingIntent.getActivity(this,
+        mConfigureIntent = PendingIntent.getActivity(
+            this,
             0,
             Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
 
     override fun handleMessage(msg: Message): Boolean {
@@ -70,16 +80,20 @@ class MyVPNService : VpnService(), Handler.Callback {
         updateForegroundNotification(R.string.connecting)
         mHandler.sendEmptyMessage(R.string.connecting)
 
-        val proxy = LocalService(0)
+        val proxy = LocalService(39399)
         proxy.start()
 
-        startConnection(MyVpnConnection(this,
-            mNextConnectionId.getAndIncrement(),
-            "localhost",
-            3939,
-            true,
-            PACKAGES,
-            proxy))
+        startConnection(
+            MyVpnConnection(
+                this,
+                mNextConnectionId.getAndIncrement(),
+                "localhost",
+                3939,
+                true,
+                PACKAGES,
+                proxy
+            )
+        )
     }
 
     private fun startConnection(connection: MyVpnConnection) {
@@ -88,10 +102,20 @@ class MyVPNService : VpnService(), Handler.Callback {
         setConnectingThread(thread)
         // Handler to mark as connected once onEstablish is called.
         connection.setConfigureIntent(mConfigureIntent)
-        connection.setOnEstablishListener{ tunInterface ->
+        connection.setOnEstablishListener { tunInterface ->
             mHandler.sendEmptyMessage(R.string.connected)
             mConnectingThread.compareAndSet(thread, null)
             setConnection(Connection(thread, tunInterface))
+
+            thread(start = true) {
+                Thread.sleep(500)
+                val socket = SocketChannel.open()
+                socket.connect(InetSocketAddress(39399))
+                val buffer = ByteBuffer.allocate(5)
+                buffer.put("hello".toByteArray())
+                buffer.flip()
+                socket.write(buffer)
+            }
         }
         thread.start()
     }
@@ -99,15 +123,21 @@ class MyVPNService : VpnService(), Handler.Callback {
     @SuppressLint("ForegroundServiceType")
     private fun updateForegroundNotification(msgRes: Int) {
         val CHANNEL_ID = "MyVPNService"
-        val service: NotificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        service.createNotificationChannel(NotificationChannel(
-            CHANNEL_ID, CHANNEL_ID,
-            NotificationManager.IMPORTANCE_DEFAULT))
-        startForeground(1,  Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(androidx.core.R.drawable.notify_panel_notification_icon_bg)
-            .setContentText(getString(msgRes))
-            .setContentIntent(mConfigureIntent)
-            .build())
+        val service: NotificationManager =
+            getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        service.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID, CHANNEL_ID,
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+        )
+        startForeground(
+            1, Notification.Builder(this, CHANNEL_ID)
+                .setSmallIcon(androidx.core.R.drawable.notify_panel_notification_icon_bg)
+                .setContentText(getString(msgRes))
+                .setContentIntent(mConfigureIntent)
+                .build()
+        )
     }
 
     override fun onDestroy() {
@@ -127,7 +157,8 @@ class MyVPNService : VpnService(), Handler.Callback {
     }
 
     private fun setConnection(connection: Connection<Thread, ParcelFileDescriptor>?) {
-        val oldConnection: Connection<Thread, ParcelFileDescriptor>? = mConnection.getAndSet(connection)
+        val oldConnection: Connection<Thread, ParcelFileDescriptor>? =
+            mConnection.getAndSet(connection)
         if (oldConnection != null) {
             try {
                 oldConnection.first.interrupt()

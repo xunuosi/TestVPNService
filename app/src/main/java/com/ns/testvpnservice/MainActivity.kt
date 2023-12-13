@@ -45,15 +45,7 @@ class MainActivity : ComponentActivity() {
 //            LocalService(39399).start()
 //        }
 
-//        thread(start = true) {
-//            Thread.sleep(500)
-//            val socket = SocketChannel.open()
-//            socket.connect(InetSocketAddress(39399))
-//            val buffer = ByteBuffer.allocate(5)
-//            buffer.put("hello".toByteArray())
-//            buffer.flip()
-//            socket.write(buffer)
-//        }
+
 
         someActivityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {result ->
             // Handle the result in onActivityResult
