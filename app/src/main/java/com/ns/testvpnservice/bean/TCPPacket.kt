@@ -2,26 +2,52 @@ package com.ns.testvpnservice.bean
 
 import com.ns.testvpnservice.Tools
 import java.nio.ByteBuffer
+import kotlin.experimental.and
 
 class TCPPacket(val tcpPacketData: ByteArray) {
     val headerBean: TCPHeader = TCPHeader(tcpPacketData.copyOfRange(0, 20))
-    val payload: ByteArray
+    val payloadSize: Int
+    var payload: ByteArray? = null
+
+    enum class Flag() {
+        URG, ACK, PSH, RST, SYN, FIN
+    }
+
     init {
         val buffer = ByteBuffer.wrap(tcpPacketData)
-        payload = ByteArray(tcpPacketData.size - 20)
-        buffer.position(20)
-        buffer.get(payload)
+        payloadSize = tcpPacketData.size - headerBean.size
+        if (payloadSize > 0) {
+            payload = ByteArray(payloadSize)
+            buffer.position(headerBean.size)
+            buffer.get(payload)
+        }
     }
 
     inner class TCPHeader(val headerData: ByteArray) {
         var srcPort: Int
         var dstPort: Int
         var checksum: Short
+        val size: Int
+        val flag: Byte
+
         init {
             // (tcpHeader[0].toInt() and 0xFF shl 8) or (tcpHeader[1].toInt() and 0xFF)
             srcPort = (headerData[0].toInt() and 0xFF shl 8) or (headerData[1].toInt() and 0xFF)
             dstPort = (headerData[2].toInt() and 0xFF shl 8) or (headerData[3].toInt() and 0xFF)
+            size = ((headerData[12].toInt() and 0xF0 shr 4) and 0x0F) * 4
+            flag = headerData[13]
             checksum = ((headerData[16].toInt() and 0xFF shl 8) or (headerData[17].toInt() and 0xFF)).toShort()
+        }
+
+        private fun isFlag(flag: Flag): Boolean {
+            return when (flag) {
+                Flag.URG -> this.flag.and(0x20.toByte()) == 0x20.toByte()
+                Flag.ACK -> this.flag.and(0x10.toByte()) == 0x10.toByte()
+                Flag.PSH -> this.flag.and(0x08.toByte()) == 0x08.toByte()
+                Flag.RST -> this.flag.and(0x04.toByte()) == 0x20.toByte()
+                Flag.SYN -> this.flag.and(0x02.toByte()) == 0x02.toByte()
+                Flag.FIN -> this.flag.and(0x01.toByte()) == 0x01.toByte()
+            }
         }
 
         fun settingSrcPort(port: Int) {
@@ -54,8 +80,15 @@ class TCPPacket(val tcpPacketData: ByteArray) {
             sb.append("TCP:{\n")
             sb.append("Source port:${this.srcPort}\n")
             sb.append("Destination port:${this.dstPort}\n")
-            sb.append("Checksum:${this.checksum}\n")
-            sb.append("PayloadSize:${this@TCPPacket.payload.size}\n")
+            sb.append("Size:${this.size}\n")
+            sb.append("URG:" + isFlag(Flag.URG) + "\n")
+            sb.append("ACK:" + isFlag(Flag.ACK) + "\n")
+            sb.append("PSH:" + isFlag(Flag.PSH) + "\n")
+            sb.append("RST:" + isFlag(Flag.RST) + "\n")
+            sb.append("SYN:" + isFlag(Flag.SYN) + "\n")
+            sb.append("FIN:" + isFlag(Flag.FIN) + "\n")
+            sb.append("Checksum:${this.checksum.toUShort()}\n")
+            sb.append("PayloadSize:${this@TCPPacket.payloadSize}\n")
             sb.append("}\n")
             return sb.toString()
         }

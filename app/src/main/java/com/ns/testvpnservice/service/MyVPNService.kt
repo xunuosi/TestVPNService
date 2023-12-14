@@ -107,15 +107,15 @@ class MyVPNService : VpnService(), Handler.Callback {
             mConnectingThread.compareAndSet(thread, null)
             setConnection(Connection(thread, tunInterface))
 
-            thread(start = true) {
-                Thread.sleep(500)
-                val socket = SocketChannel.open()
-                socket.connect(InetSocketAddress(39399))
-                val buffer = ByteBuffer.allocate(5)
-                buffer.put("hello".toByteArray())
-                buffer.flip()
-                socket.write(buffer)
-            }
+//            thread(start = true) {
+//                Thread.sleep(500)
+//                val socket = SocketChannel.open()
+//                socket.connect(InetSocketAddress(39399))
+//                val buffer = ByteBuffer.allocate(5)
+//                buffer.put("hello".toByteArray())
+//                buffer.flip()
+//                socket.write(buffer)
+//            }
         }
         thread.start()
     }

@@ -18,7 +18,7 @@ class IPPacket(val ipPacketData: ByteArray) {
         init {
             version = ipHeaderData[0].toInt() shr 4
             headerLen = (ipHeaderData[0].toInt() and 0x0F) * 4
-            payloadSize = ((ipHeaderData[2].toInt() shl 8 or ipHeaderData[3].toInt()).toByte().toUShort() - 20u).toInt()
+            payloadSize = ((ipHeaderData[2].toInt() shl 8 or ipHeaderData[3].toInt()).toByte().toUShort() - headerLen.toUInt()).toInt()
             protocol = ipHeaderData[9].toInt()
             checksum = ((ipHeaderData[10].toInt() and 0xFF shl 8) or (ipHeaderData[11].toInt() and 0xFF)).toShort()
             srcIP = InetAddress.getByAddress(ipHeaderData.copyOfRange(12, 16))
@@ -31,10 +31,10 @@ class IPPacket(val ipPacketData: ByteArray) {
             sb.append("Version:${this.version}\n")
             sb.append("HeaderSize:${this.headerLen}\n")
             sb.append("PayloadSize:${this.payloadSize}\n")
-            sb.append("Protocol:${this.protocol}\n")
+            sb.append("Protocol:${this.protocol.toUInt()}\n")
             sb.append("Src IP:${this.srcIP}\n")
             sb.append("Dst IP:${this.dstIP}\n")
-            sb.append("Checksum:${this.checksum}\n")
+            sb.append("Checksum:${this.checksum.toUShort()}\n")
             sb.append("}\n")
             return sb.toString()
         }
@@ -84,7 +84,7 @@ class IPPacket(val ipPacketData: ByteArray) {
 
     fun settingPayload(data: ByteArray) {
         val buffer = ByteBuffer.wrap(this.ipPacketData)
-        buffer.position(20)
+        buffer.position(this.headerBean.headerLen)
         buffer.put(data)
     }
 }

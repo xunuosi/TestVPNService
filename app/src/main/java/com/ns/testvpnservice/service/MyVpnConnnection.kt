@@ -287,8 +287,8 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         Log.i(TAG,"IP Header src:$ipHeaderBean")
         if (ipHeaderBean.isTCP() && ipHeaderBean.version == 4) {
             ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
-//            ipHeaderBean.settingDstIp(InetAddress.getByName("10.8.0.2"))
-            ipHeaderBean.settingDstIp(InetAddress.getByName("127.0.0.1"))
+            ipHeaderBean.settingDstIp(InetAddress.getByName("10.8.0.2"))
+//            ipHeaderBean.settingDstIp(InetAddress.getByName("127.0.0.1"))
             ipHeaderBean.refreshChecksum()
             Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
 //

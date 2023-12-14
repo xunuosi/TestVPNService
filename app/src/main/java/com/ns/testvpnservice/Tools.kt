@@ -34,7 +34,7 @@ class Tools {
 
         fun checkTCPSum(ipHeader: IPPacket.IPHeader, tcpPacket: TCPPacket): Short {
             // the total size of the pseudo header(12 Bytes) = IP of the Source (32 bits) + IP of the Destination (32 bits) +TCP/UDP segment Length(16 bit) + Protocol(8 bits) + Fixed 8 bits
-            val size = 12 + 20 + ipHeader.payloadSize
+            val size = 12 + ipHeader.payloadSize
             val buffer = ByteBuffer.allocate(size)
             // Write pseudo header
             buffer.put(ipHeader.srcIP.address)
