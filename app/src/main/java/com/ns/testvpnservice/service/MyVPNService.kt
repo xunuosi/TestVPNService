@@ -32,7 +32,8 @@ class MyVPNService : VpnService(), Handler.Callback {
         const val ACTION_CONNECT = "com.ns.testvpnservice.START"
         const val ACTION_DISCONNECT = "com.ns.testvpnservice.STOP"
         val mNextConnectionId = AtomicInteger(1)
-        val PACKAGES = setOf("com.lite.lanxin", "com.lite.lanxin.alpha", "com.termux")
+        val PACKAGES = setOf("com.termux", "com.ns.testvpnservice")
+//        val PACKAGES = setOf("com.termux")
     }
 
     private class Connection<Thread, ParcelFileDescriptor>(

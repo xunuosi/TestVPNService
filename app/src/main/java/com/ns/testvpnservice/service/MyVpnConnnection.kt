@@ -7,6 +7,7 @@ import com.ns.testvpnservice.Tools
 import com.ns.testvpnservice.bean.IPPacket
 import com.ns.testvpnservice.bean.TCPPacket
 import com.ns.testvpnservice.monitor.LocalService
+import com.ns.testvpnservice.monitor.SessionManager
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
@@ -28,6 +29,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         private var IDLE_INTERVAL_MS = TimeUnit.MILLISECONDS.toMillis(100)
         private var KEEPALIVE_INTERVAL_MS = TimeUnit.SECONDS.toMillis(15)
         private var RECEIVE_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(20)
+        private val MUTE_SIZE = 2560
     }
     private lateinit var mConfigureIntent: PendingIntent
     private var mListener: OnEstablishListener? = null
@@ -251,7 +253,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 //                    's' -> builder.addSearchDomain(fields[1])
 //                }
 //        }
-//        builder.setMtu()
+        builder.setMtu(MUTE_SIZE)
         builder.addAddress("10.8.0.2", 32)
         builder.addRoute("0.0.0.0", 0)
 //        builder.addDnsServer("8.8.8.8")
@@ -284,31 +286,61 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         }
         val ipPacket = IPPacket(packetData)
         val ipHeaderBean = ipPacket.headerBean
+
         Log.i(TAG,"IP Header src:$ipHeaderBean")
         if (ipHeaderBean.isTCP() && ipHeaderBean.version == 4) {
-            ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
-            ipHeaderBean.settingDstIp(InetAddress.getByName("10.8.0.2"))
-//            ipHeaderBean.settingDstIp(InetAddress.getByName("127.0.0.1"))
-            ipHeaderBean.refreshChecksum()
-            Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
-//
             val tcpPacket = TCPPacket(packetData.copyOfRange(20, packetData.size))
-            val tcpHeader = tcpPacket.headerBean
-            Log.i(TAG,"TCP Header src:$tcpHeader")
-            tcpHeader.settingSrcPort(tcpHeader.dstPort)
-            tcpHeader.settingDstPort(mTcpProxyServer.myPort)
-            tcpHeader.refreshChecksum(ipHeaderBean)
-            ipPacket.settingPayload(tcpPacket.toData())
+            Log.i(TAG,"TCP Header src:${tcpPacket.headerBean}")
+            if (tcpPacket.headerBean.srcPort == mTcpProxyServer.myPort) {
+                Log.i(TAG, "----------------intercept TCP Proxy------------------------")
+                val convSession = SessionManager.getSession(tcpPacket.headerBean.dstPort)
+                if (convSession != null) {
+                    ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
+                    ipHeaderBean.settingDstIp(InetAddress.getByName("10.8.0.2"))
+                    ipPacket.headerBean.refreshChecksum()
+                    Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
+                    tcpPacket.headerBean.settingSrcPort(convSession.remotePort)
+//                    tcpPacket.headerBean.settingDstPort(convSession.localPort)
+                    tcpPacket.headerBean.refreshChecksum(ipHeaderBean)
+                    Log.i(TAG,"TCP Header refresh checksum:${tcpPacket.headerBean}")
+                    ipPacket.settingPayload(tcpPacket.toData())
+                    val data = ipPacket.toData()
+                    output?.write(data, 0, data.size)
+                } else {
+                    Log.e(TAG, "conv session is not found")
+                }
+            } else {
+                Log.i(TAG, "----------------intercept to Net------------------------")
+                val convSession = SessionManager.getSession(tcpPacket.headerBean.srcPort)
+                if (convSession == null || convSession.remoteAddress != ipPacket.headerBean.dstIP || convSession.remotePort != tcpPacket.headerBean.dstPort) {
+                    SessionManager.createSession(tcpPacket.headerBean.srcPort, tcpPacket.headerBean.dstPort, ipHeaderBean.dstIP)
+                }
+                ipHeaderBean.settingSrcIp(ipHeaderBean.dstIP)
+                ipHeaderBean.settingDstIp(InetAddress.getByName("10.8.0.2"))
+//            ipHeaderBean.settingDstIp(InetAddress.getByName("127.0.0.1"))
+                ipHeaderBean.refreshChecksum()
+                Log.i(TAG,"IP Header refresh checksum:$ipHeaderBean")
+
+                val tcpHeader = tcpPacket.headerBean
+//                tcpHeader.settingSrcPort(tcpHeader.dstPort)
+                tcpHeader.settingDstPort(mTcpProxyServer.myPort)
+                tcpHeader.refreshChecksum(ipHeaderBean)
+                ipPacket.settingPayload(tcpPacket.toData())
 //            val tcpHeader2 = TCPPacket(tcpPacket.toData()).headerBean
-            Log.i(TAG,"TCP Header refresh checksum:$tcpHeader")
+                Log.i(TAG,"TCP Header refresh checksum:$tcpHeader")
 //            println("---------------------------new-------------------------------------")
-            val data = ipPacket.toData()
+                val data = ipPacket.toData()
 //            println(newData.contentToString())
 //            println("---------------------------end-------------------------------------")
 //            val data = Tools.mockTestPacket(mTcpProxyServer.myPort.toShort())
-            output?.write(data, 0, data.size)
+                try {
+                    output?.write(data, 0, data.size)
+                } catch (e: IOException) {
+                    Log.e(TAG, "write TCP $e")
+                }
+                return true
+            }
 
-            return true
         }
         return false
     }
