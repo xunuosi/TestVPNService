@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 
-class MyVPNService : VpnService(), Handler.Callback {
+class MyVPNService : VpnService(), Handler.Callback, LocalService.LocalServiceListener {
     companion object {
         private const val TAG = "MyVPNService"
         const val ACTION_CONNECT = "com.ns.testvpnservice.START"
@@ -81,7 +81,7 @@ class MyVPNService : VpnService(), Handler.Callback {
         updateForegroundNotification(R.string.connecting)
         mHandler.sendEmptyMessage(R.string.connecting)
 
-        val proxy = LocalService(39399)
+        val proxy = LocalService(39399, this)
         proxy.start()
 
         startConnection(
@@ -168,5 +168,9 @@ class MyVPNService : VpnService(), Handler.Callback {
                 Log.e(TAG, "Closing VPN interface", e)
             }
         }
+    }
+
+    override fun onRemoteTunnelCreated(socket: Socket) {
+        this.protect(socket)
     }
 }

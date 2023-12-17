@@ -2,15 +2,21 @@ package com.ns.testvpnservice.monitor
 
 import android.util.Log
 import java.net.InetSocketAddress
+import java.net.Socket
 import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 
-class LocalService(port: Int) : Thread() {
+class LocalService(port: Int, val listener: LocalServiceListener) : Thread() {
     private val mSelector: Selector
     private val mServerSocketChannel: ServerSocketChannel
     val myPort: Int
     private val mServerThread: Thread
+
+    fun interface LocalServiceListener {
+        fun onRemoteTunnelCreated(socket: Socket)
+    }
+
     companion object {
         private const val TAG = "LocalService"
     }
@@ -40,8 +46,6 @@ class LocalService(port: Int) : Thread() {
                     Log.d(TAG, "sleep...")
                     continue
                 }
-                val selectionKeys: Set<SelectionKey> = mSelector.selectedKeys()
-                    ?: continue
                 val keyIterator: MutableIterator<SelectionKey> = mSelector.selectedKeys().iterator()
                 while (keyIterator.hasNext()) {
                     val key = keyIterator.next()
@@ -52,9 +56,9 @@ class LocalService(port: Int) : Thread() {
                                 onAccepted(key)
                             } else {
                                 val attachment = key.attachment()
-//                                if (attachment is KeyHandler) {
-//                                    (attachment as KeyHandler).onKeyReady(key)
-//                                }
+                                if (attachment is KeyHandler) {
+                                    attachment.onKeyReady(key)
+                                }
                             }
                         } catch (ex: Exception) {
                             ex.printStackTrace(System.err)
@@ -68,14 +72,24 @@ class LocalService(port: Int) : Thread() {
             Log.e(TAG, "updServer catch an exception: %s", e)
         } finally {
             this.stop()
-            Log.i(TAG,"udpServer thread exited.")
+            Log.i(TAG, "udpServer thread exited.")
         }
     }
 
     fun onAccepted(key: SelectionKey?) {
         val localChannel = mServerSocketChannel.accept()
         Log.d(TAG, "onAccepted:$localChannel")
-
+        // Create a real remote tunnel
+        val portKey = localChannel.socket().port
+        val conSession = SessionManager.getSession(portKey)
+        if (conSession == null) {
+            Log.e(TAG, "not found portKey:$portKey attach conversation session")
+            throw Exception("Not found session")
+            return
+        }
+        val bindTunnel = TCPTunnel(localChannel.socket(), conSession, mSelector)
+        listener.onRemoteTunnelCreated(bindTunnel.getRemoteSocket())
+        bindTunnel.start()
 //        var localTunnel: TcpTunnel? = null
 //        try {
 //            val localChannel = mServerSocketChannel.accept()
