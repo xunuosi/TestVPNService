@@ -3,6 +3,7 @@ package com.ns.testvpnservice.bean
 import com.ns.testvpnservice.Tools
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import kotlin.experimental.and
 
 class IPPacket(val ipPacketData: ByteArray) {
     val headerBean: IPHeader = IPHeader(ipPacketData.copyOfRange(0, 20))
@@ -18,7 +19,8 @@ class IPPacket(val ipPacketData: ByteArray) {
         init {
             version = ipHeaderData[0].toInt() shr 4
             headerLen = (ipHeaderData[0].toInt() and 0x0F) * 4
-            payloadSize = ((ipHeaderData[2].toInt() shl 8 or ipHeaderData[3].toInt()).toByte().toUShort() - headerLen.toUInt()).toInt()
+            val totalSize = ((ipHeaderData[2].toInt() and 0xFF) shl 8) or (ipHeaderData[3].toInt() and 0xFF)
+            payloadSize = totalSize - headerLen
             protocol = ipHeaderData[9].toInt()
             checksum = ((ipHeaderData[10].toInt() and 0xFF shl 8) or (ipHeaderData[11].toInt() and 0xFF)).toShort()
             srcIP = InetAddress.getByAddress(ipHeaderData.copyOfRange(12, 16))

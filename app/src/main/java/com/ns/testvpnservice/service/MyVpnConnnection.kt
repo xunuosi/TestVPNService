@@ -29,7 +29,6 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
         private var IDLE_INTERVAL_MS = TimeUnit.MILLISECONDS.toMillis(100)
         private var KEEPALIVE_INTERVAL_MS = TimeUnit.SECONDS.toMillis(15)
         private var RECEIVE_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(20)
-        private val MUTE_SIZE = 2560
     }
     private lateinit var mConfigureIntent: PendingIntent
     private var mListener: OnEstablishListener? = null
@@ -253,7 +252,7 @@ class MyVpnConnection(private val mService: MyVPNService, private  val connectio
 //                    's' -> builder.addSearchDomain(fields[1])
 //                }
 //        }
-        builder.setMtu(MUTE_SIZE)
+        builder.setMtu(MyVPNService.MTU_SIZE)
         builder.addAddress("10.8.0.2", 32)
         builder.addRoute("0.0.0.0", 0)
 //        builder.addDnsServer("8.8.8.8")

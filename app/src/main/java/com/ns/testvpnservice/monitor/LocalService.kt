@@ -85,11 +85,15 @@ class LocalService(port: Int, val listener: LocalServiceListener) : Thread() {
         if (conSession == null) {
             Log.e(TAG, "not found portKey:$portKey attach conversation session")
             throw Exception("Not found session")
-            return
         }
-        val bindTunnel = TCPTunnel(localChannel.socket(), conSession, mSelector)
-        listener.onRemoteTunnelCreated(bindTunnel.getRemoteSocket())
-        bindTunnel.start()
+        val localTunnel = TCPLocalTunnel(localChannel, conSession, mSelector)
+        val remoteTunnel = TCPRemoteTunnel(localChannel.socket().inetAddress, conSession, mSelector)
+
+        localTunnel.bindRemoteTunnel(remoteTunnel)
+        remoteTunnel.bindLocalTunnel(localTunnel)
+
+        listener.onRemoteTunnelCreated(remoteTunnel.getRemoteSocket())
+        remoteTunnel.start()
 //        var localTunnel: TcpTunnel? = null
 //        try {
 //            val localChannel = mServerSocketChannel.accept()

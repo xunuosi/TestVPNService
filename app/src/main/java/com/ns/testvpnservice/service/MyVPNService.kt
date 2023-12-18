@@ -34,6 +34,7 @@ class MyVPNService : VpnService(), Handler.Callback, LocalService.LocalServiceLi
         val mNextConnectionId = AtomicInteger(1)
         val PACKAGES = setOf("com.termux", "com.ns.testvpnservice")
 //        val PACKAGES = setOf("com.termux")
+        val MTU_SIZE = 1500
     }
 
     private class Connection<Thread, ParcelFileDescriptor>(
